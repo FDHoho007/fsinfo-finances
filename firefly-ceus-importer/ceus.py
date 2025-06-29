@@ -53,6 +53,7 @@ def get_ceus_data():
     options = Options()
     options.headless = True
     with webdriver.Firefox(options=options) as driver:
+        driver.set_window_size(1920, 3000)
         # Login via Shibboleth
         driver.get(LOGIN_URL)
         WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.NAME, "j_username")))
