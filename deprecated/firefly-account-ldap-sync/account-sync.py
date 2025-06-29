@@ -10,6 +10,7 @@ from config import (
     LDAP_BIND_DN,
     LDAP_BIND_PASSWORD,
     LDAP_IBAN_ATTR,
+    LDAP_ADDITIONAL_ATTRIBUTES
 )
 
 class Firefly_III_Client:
@@ -36,6 +37,22 @@ class Firefly_III_Client:
             data.extend(response["data"])
             pages_left = response["meta"]["pagination"]["current_page"] < response["meta"]["pagination"]["total_pages"]
             page += 1
+        for account in data:
+            notes = account["attributes"].get("notes", "").split("\n")
+            attributes = []
+            for line in notes:
+                if not ":" in line:
+                    continue
+                note = line.split(":", 1)
+                attributes[note[0].strip()] = note[1].strip()
+                
+            for attribute, config in LDAP_ADDITIONAL_ATTRIBUTES.items():
+                if attribute in attributes:
+                    value = attributes[attribute]
+                    if "transformer" in config:
+                        value = config["transformer"](value)
+                    account["attributes"][config["displayName"]] = value
+
         return data
     
     def deactivate_account(self, account):
@@ -74,6 +91,9 @@ def get_ldap_users():
             "iban": entry.get(LDAP_IBAN_ATTR, [b""])[0].decode().replace(" ", ""),
             "present": False
         }
+        for attribute in LDAP_ADDITIONAL_ATTRIBUTES.keys():
+            if attribute in entry:
+                user[attribute] = LDAP_ADDITIONAL_ATTRIBUTES[attribute]["transformer"](entry[attribute][0].decode())
         users.append(user)
     conn.unbind_s()
     return users
