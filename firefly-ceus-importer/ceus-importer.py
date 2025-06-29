@@ -62,6 +62,7 @@ def create_transaction(client, item):
         "date": item["date"],
         "book_date": item["date"],
         "budget_id": item["budget_id"],
+        "internal_reference": item["internal_reference"],
         "source_id": FIREFLY_ACCOUNT_ID if type == "withdrawal" else partner,
         "destination_id": FIREFLY_ACCOUNT_ID if type == "deposit" else partner,
     }
@@ -76,7 +77,7 @@ def update_transaction(client, transaction, item):
         updated_transaction["tags"].append(FIREFLY_PROCESSED_TAG)
     for field in FORCE_UPDATE_FIELDS:
         if field in item:
-            if field in ["description", "amount", "date", "budget_id"]:
+            if field in ["description", "amount", "book_date", "budget_id", "internal_reference"]:
                 updated_transaction[field] = item[field]
             elif field == "category" and not item[field] in updated_transaction["tags"]:
                 updated_transaction["tags"].append(item[field])
@@ -100,12 +101,13 @@ def update_transaction(client, transaction, item):
                         break
 
 def process_transaction(client, transaction, item):
-    updated_transaction = {"tags": transaction['tags'], "budget_id": item["budget_id"], "book_date": item["date"]}
+    updated_transaction = {"tags": transaction['tags'], "budget_id": item["budget_id"], "book_date": item["date"], "internal_reference": item["internal_reference"]}
     updated_transaction["tags"].append("hül-nr-" + item["id"]) 
     updated_transaction["tags"].append(FIREFLY_PROCESSED_TAG)
     client.update_transaction(transaction['id'], updated_transaction)
 
 def transaction_map_attributes(item):
+    item["internal_reference"] = item["id"]
     item["amount"] = item["amount"].replace(",", "")
     item["budget_id"] = FIREFLY_CHAPTER_IDS.get(item["title"] + "/" + item["subtitle"], None)
     item["date"] = datetime.strptime(item["date"], "%d.%m.%Y").strftime("%Y-%m-%dT00:00")
@@ -130,16 +132,19 @@ def main():
     for item in [t for t in data if not skip_transaction(t)]:
         transaction_map_attributes(item)
         transaction = client.get_tag_transactions("hül-nr-" + item["id"])
-        if transaction is not None and len(FORCE_UPDATE_FIELDS) > 0:
+        if transaction is not None and len(FORCE_UPDATE_FIELDS) > 0: # Currently not used
             transaction = transaction['data'][0]['attributes']['transactions'][0]
             update_transaction(client, transaction, item)
         elif transaction is None:
             pending_transactions = client.get_tag_transactions(FIREFLY_SUBMITTED_TAG)
+            found_pending_transaction = False
             for transaction in pending_transactions['data'] if pending_transactions is not None else []:
                 transaction = transaction['attributes']['transactions'][0]
                 if FIREFLY_PROCESSED_TAG not in transaction.get("tags", []) and transaction.get("amount") == item["amount"]:
                     process_transaction(client, transaction, item)
-            create_transaction(client, item)
+                    found_pending_transaction = True
+            if not found_pending_transaction:
+                create_transaction(client, item)
 
 if __name__ == "__main__":
     main()
