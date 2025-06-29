@@ -17,7 +17,11 @@ if ($html !== false) {
             if (count($parts) < 8) {
                 continue;
             }
-            $BICs[trim($parts[0], " \t\n\r\0\x0B\"")] = trim($parts[7], " \t\n\r\0\x0B\"");
+            $value = trim($parts[7], " \t\n\r\0\x0B\"");
+            if (empty($value)) {
+                continue;
+            }
+            $BICs[trim($parts[0], " \t\n\r\0\x0B\"")] = $value;
         }
     }
     libxml_clear_errors();
