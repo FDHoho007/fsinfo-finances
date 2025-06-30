@@ -24,9 +24,11 @@ RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v$GECKODRIV
 COPY firefly_iii_client.py ./
 COPY ceus.py ./
 COPY ceus-importer.py ./
+COPY ceus-importer.sh ./
+RUN chmod +x ceus-importer.sh
 
 # Add the cron job
-RUN echo "0 * * * * python3 /usr/src/app/ceus-importer.py >> /var/log/cron.log 2>&1" > /etc/cron.d/ceus-cron \
+RUN echo "0 * * * * /usr/src/app/ceus-importer.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/ceus-cron \
     && chmod 0644 /etc/cron.d/ceus-cron \
     && crontab /etc/cron.d/ceus-cron
 
