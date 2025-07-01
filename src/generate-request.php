@@ -48,13 +48,20 @@ function delete_directory($dir) {
 $oauth2Client = new FireflyIIIOAuth2Client(FIREFLY_URL, OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URI);
 
 if (!isset($_GET['code']) && !isset($_POST["access_token"])) {
-    $oauth2Client->authorize();
+    if(isset($_GET["id"])) {
+        $oauth2Client->authorize($_GET["id"]);
+    } else {
+        $oauth2Client->authorize();
+    }
 }
 
 if(isset($_POST["access_token"])) {
     $accessToken = $_POST["access_token"];
 } else if(isset($_GET['code'])) {
     $accessToken = $oauth2Client->token($_GET['code']);
+    if(isset($_GET["state"])) {
+        $id = $_GET["state"];
+    }
 }
 
 if (empty($accessToken)) {
@@ -64,7 +71,10 @@ if (empty($accessToken)) {
 $fireflyClient = new FireflyIIIClient(FIREFLY_URL, $accessToken);
 
 if(isset($_POST["id"])) {
-    $transaction = $fireflyClient->get("transactions/" . $_POST["id"])["data"]["attributes"]["transactions"][0];
+    $id = $_POST["id"];
+}
+if(isset($id)) {
+    $transaction = $fireflyClient->get("transactions/$id")["data"]["attributes"]["transactions"][0];
     if($transaction["type"] !== "withdrawal") {
         throw new Exception('Selected transaction is not an expense.');
     }
@@ -77,7 +87,7 @@ if(isset($_POST["id"])) {
     }
     $attachments = ["$tmpDir/refund.pdf"];
     if($transaction["has_attachments"]) {
-        foreach($fireflyClient->get("transactions/" . $_POST["id"] . "/attachments")["data"] as $attachment) {
+        foreach($fireflyClient->get("transactions/$id/attachments")["data"] as $attachment) {
             $ch = curl_init($attachment["attributes"]["download_url"]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
@@ -95,7 +105,7 @@ if(isset($_POST["id"])) {
         }
     }
 
-    $fireflyClient->makeRequest('PUT', 'transactions/' . $_POST["id"], ["transactions" => [["tags" => array_merge($transaction["tags"], [FIREFLY_SUBMITTED_TAG])]]], false);
+    $fireflyClient->makeRequest('PUT', "transactions/$id", ["transactions" => [["tags" => array_merge($transaction["tags"], [FIREFLY_SUBMITTED_TAG])]]], false);
     $accountAttributes = $fireflyClient->get("accounts/" . $transaction["destination_id"])["data"]["attributes"];
     $accountAttributes = $fireflyClient->getAccountAttributes($accountAttributes, FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES);
     $transactionAttributes = array_merge([
@@ -105,10 +115,10 @@ if(isset($_POST["id"])) {
         "date" => date("d.m.Y", strtotime($transaction["date"])),
     ], $accountAttributes);
 
-    $templateFile = PDF_TEMPLATES[null];
+    $templateFile = "pdf-templates/" . PDF_TEMPLATES[null];
     foreach($transaction["tags"] as $tag) {
         if(array_key_exists($tag, PDF_TEMPLATES)) {
-            $templateFile = PDF_TEMPLATES[$tag];
+            $templateFile = "pdf-templates/" . PDF_TEMPLATES[$tag];
             break;
         }
     }
@@ -126,7 +136,7 @@ if(isset($_POST["id"])) {
     pdftk("$tmpDir/refund-combined-no-data.pdf", "update_info " . escapeshellarg("$tmpDir/refund.txt"), $pdfFile);
 
     header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="refund-request-' . $_POST["id"] . '.pdf"');
+    header('Content-Disposition: inline; filename="refund-request-' . $id . '.pdf"');
     header('Content-Length: ' . filesize($pdfFile));
     header('Cache-Control: private');
     flush();
@@ -164,7 +174,7 @@ if(isset($_POST["id"])) {
                         foreach($transactions as $transaction) {
                             $attributes = $transaction["attributes"]["transactions"][0];
                             if(!in_array(FIREFLY_SUBMITTED_TAG, $attributes["tags"]) && !in_array(FIREFLY_PROCESSED_TAG, $attributes["tags"])) {
-                                echo("<option value=\"" . $transaction["id"] . "\">#" . $transaction["id"] . " - " . $attributes["description"] . " - " . floatval($attributes["amount"]) . $attributes["currency_symbol"] . "</option>");
+                                echo("<option value=\"" . $transaction["id"] . "\">#" . $transaction["id"] . " - " . $attributes["description"] . " - " . floatval($attributes["amount"]) . $attributes["currency_symbol"] . "</option>\n");
                             }
                         }
                     ?>

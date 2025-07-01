@@ -1,0 +1,26 @@
+From 88def2b506e48aa5999abdedb9bb388a1e3e772b Mon Sep 17 00:00:00 2001
+From: FDHoho007 <mail@fdhoho007.de>
+Date: Tue, 1 Jul 2025 15:00:05 +0200
+Subject: [PATCH] Add Refund Request Generator Button
+
+---
+ resources/views/transactions/show.twig | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/resources/views/transactions/show.twig b/resources/views/transactions/show.twig
+index 6e38065006..cd8d1ee852 100644
+--- a/resources/views/transactions/show.twig
++++ b/resources/views/transactions/show.twig
+@@ -54,6 +54,10 @@
+                                 <li><a href="#" class="clone-transaction-and-edit" data-id="{{ transactionGroup.id }}"><span
+                                             class="fa fa-copy"></span> {{ 'clone_and_edit'|_ }}</a></li>
+                             {% endif %}
++                            {% if groupArray.transactions[0].type == 'withdrawal' %}
++                                <li role="separator" class="divider"></li>
++                                <li><a target="_blank" href="https://fsinfo.fim.uni-passau.de/finances/generate-request.php?id={{ transactionGroup.id }}"><span class="fa fa-print"></span> Antrag erstellen</a></li>
++                            {% endif %}
+                             {% endif %}
+ 
+                         </ul>
+-- 
+2.39.5
