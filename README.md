@@ -14,6 +14,14 @@ The importer will also automatically assign budgets to transactions depending on
 
 Since this tool requires access to CEUS (probably via a ZIM account) it should only run in a secure environment of the owner of the ZIM account used.
 
-## Account LDAP Sync
+## Usage
 
-This tools syncs expense accounts from a LDAP directory. In order to generate a BIC from an IBAN this tool needs a bank.py file. This file can be generated using blz-csv-converter.py.
+There are two types of users: Members of the Finance team and members of the student council.
+
+Members of the student council might pas something for the student council. In order to get their money back, they can fill out a refund request (refund.php).
+This will collect all information required for the finance team. If a user has an FSinfo account, their personal information can be read from the LDAP directory.
+Otherwise the user has to provide this information in the form and verify his email address before submitting. When a request is submitted an unconfirmed transaction is created in Firefly III.
+Unconfirmed transactions are marked with a tag and deleted after two weeks, if the tag has not been removed. The transaction include all the information from the form including attachments.
+
+Members of the finance team receive an email notification whenever a new refund request has been submitted. They should then manually check whether the transaction was agreed upon and if so, remove the unconfirmed tag.
+They can modify or enrich transaction information like setting a category. To submit this request to the university finance department they can generate a pdf at generate-request.php and print it. This will automatically add the submitted tag. The CEUS importer will add a payed tag when the transaction appears in CEUS.
