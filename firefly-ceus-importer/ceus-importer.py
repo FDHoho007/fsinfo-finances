@@ -119,7 +119,7 @@ def transaction_map_attributes(item):
     # Die Beschreibung kann entsprechend gekürzt werden
     # Aus der dritten Zahl kann die Ref.-HÜL-Nr. extrahiert werden
     match = re.search(r'Buch\. \d+ \d+ (\d+) \d+$', item["description"])
-    if (item["_bukz"] == "UA0" or item["_bukz"] == "UG0") and item["ref_id"] == 0 and match:
+    if (item["_bukz"] == "UA0" or item["_bukz"] == "UG0") and item["ref_id"] == "0" and match:
         item["description"] = re.sub(r'Buch\..*$', '', item["description"]).strip()
         item["ref_id"] = match.group(1)
 
