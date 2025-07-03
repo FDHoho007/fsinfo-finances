@@ -124,7 +124,8 @@ def transaction_map_attributes(item):
         item["ref_id"] = match.group(1)
 
 def skip_transaction(transaction):
-    return transaction["_bukz"] == "G"
+    # GV und SZ sind für uns nicht relevant. Buchungen passieren über H und HG.
+    return transaction["_bukz"] == "GV" or transaction["_bukz"] == "SZ" or transaction["_bukz"] == "G"
 
 def main():
     data = get_ceus_data()
