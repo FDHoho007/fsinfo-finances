@@ -104,6 +104,8 @@ def process_transaction(client, transaction, item):
     updated_transaction = {"tags": transaction['tags'], "budget_id": item["budget_id"], "book_date": item["date"], "internal_reference": item["internal_reference"]}
     updated_transaction["tags"].append("hül-nr-" + item["id"]) 
     updated_transaction["tags"].append(FIREFLY_PROCESSED_TAG)
+    if item["category"] != "--":
+        updated_transaction["tags"].append(item["category"])
     client.update_transaction(transaction['id'], updated_transaction)
 
 def transaction_map_attributes(item):
@@ -140,8 +142,10 @@ def main():
             pending_transactions = client.get_tag_transactions(FIREFLY_SUBMITTED_TAG)
             found_pending_transaction = False
             for transaction in pending_transactions['data'] if pending_transactions is not None else []:
+                transaction_id = transaction['id']
                 transaction = transaction['attributes']['transactions'][0]
-                if FIREFLY_PROCESSED_TAG not in transaction.get("tags", []) and transaction.get("amount") == item["amount"]:
+                transaction['id'] = transaction_id
+                if FIREFLY_PROCESSED_TAG not in transaction.get("tags", []) and float(transaction.get("amount")) == float(item["amount"]):
                     process_transaction(client, transaction, item)
                     found_pending_transaction = True
             if not found_pending_transaction:
