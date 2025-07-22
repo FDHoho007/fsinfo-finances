@@ -109,7 +109,7 @@ if(isset($id)) {
     $accountAttributes = $fireflyClient->get("accounts/" . $transaction["destination_id"])["data"]["attributes"];
     $accountAttributes = $fireflyClient->getAccountAttributes($accountAttributes, FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES);
     $transactionAttributes = array_merge([
-        "amount" => floatval($transaction["amount"]),
+        "amount" => number_format(floatval($transaction["amount"]), 2, ',', ''),
         "notes" => str_replace(", ", "\n", isset($transaction["notes"]) ? $transaction["notes"] : ""),
         "description" => (empty($transaction["category_name"]) ? "" : $transaction["category_name"] . " - ") . $transaction["description"],
         "date" => date("d.m.Y", strtotime($transaction["date"])),
