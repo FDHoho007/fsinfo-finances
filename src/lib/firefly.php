@@ -11,23 +11,30 @@ class FireflyIIIClient
         $this->apiKey = $apiKey;
     }
 
-    public function makeRequest($method, $url, $data = null, $returnJson = true) {
+    public function makeRequest($method, $url, $data = null, $returnJson = true, $binary = false) {
         $ch = curl_init($this->baseUrl . '/api/v1/' . $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         $headers = [
             'Authorization: Bearer ' . $this->apiKey,
         ];
-        if($data != null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-            $headers[] = 'Content-Type: application/json';
+        if ($data != null) {
+            if ($binary) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+                if (!array_filter($headers, fn($h) => stripos($h, 'Content-Type:') === 0)) {
+                    $headers[] = 'Content-Type: application/octet-stream';
+                }
+            } else {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                $headers[] = 'Content-Type: application/json';
+            }
         }
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         $response = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpcode !== 200) {
+        if ($httpcode < 200 || $httpcode >= 300) {
             throw new Exception('Error fetching data from Firefly: ' . $response);
         }
 
@@ -40,7 +47,7 @@ class FireflyIIIClient
         return $this->makeRequest('GET', $url, null, $returnJson);
     }
 
-    function getAccountAttributes($account, $additionalAttributes) {
+    public function getAccountAttributes($account, $additionalAttributes) {
         $attributes = [
             "name" => $account["name"] ?? "",
             "iban" => empty($account["iban"]) ? "" : preg_replace('/(.{4})/', '$1 ', str_replace(" ", "", $account["iban"])),
@@ -79,13 +86,16 @@ class FireflyIIIOAuth2Client {
         $this->redirectUri = $redirectUri;
     }
 
-    public function authorize() {
-        $params = http_build_query([
+    public function authorize($state = null) {
+        $params = [
             'response_type' => 'code',
             'client_id' => $this->clientId,
             'redirect_uri' => $this->redirectUri,
-        ]);
-        header('Location: ' . $this->baseUrl . '/oauth/authorize?' . $params);
+        ];
+        if($state != null) {
+            $params["state"] = $state;
+        } 
+        header('Location: ' . $this->baseUrl . '/oauth/authorize?' . http_build_query($params));
         exit;
     }
 

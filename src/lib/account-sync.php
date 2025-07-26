@@ -4,6 +4,28 @@ require_once("config.php");
 require_once("firefly.php");
 require_once("bic.php");
 
+function getSyncableAccount($fireflyClient, $account) {
+    $attributes = $fireflyClient->getAccountAttributes($account["attributes"], FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES);
+    return array_merge(["id" => $account["id"]], $attributes);
+}
+
+function getSyncableUser($entry) {
+    $user = [
+        "name" => sprintf("%s, %s", $entry["sn"][0], $entry["givenname"][0]),
+        "iban" => str_replace(" ", "", $entry[strtolower(LDAP_IBAN_ATTR)][0]),
+        "present" => false
+    ];
+    foreach (FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES as $attribute) {
+        if (isset($entry[strtolower($attribute["ldapKey"])][0])) {
+            $user[$attribute["key"]] = $entry[strtolower($attribute["ldapKey"])][0];
+            if(isset($attribute["ldapFormat"])) {
+                $user[$attribute["key"]] = $attribute["ldapFormat"]($user[$attribute["key"]]);
+            }
+        }
+    }
+    return $user;
+}
+
 function getAccounts($fireflyClient) {
     $accounts = [];
     $page = 1;
@@ -14,10 +36,7 @@ function getAccounts($fireflyClient) {
     $accounts = array_filter($accounts, function($account) {
         return $account["attributes"]["type"] === "expense" && $account["attributes"]["active"];
     });
-    $accounts = array_map(function($account) use ($fireflyClient) {
-        $attributes = $fireflyClient->getAccountAttributes($account["attributes"], FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES);
-        return array_merge(["id" => $account["id"]], $attributes);
-    }, $accounts);
+    $accounts = array_map(function($account) use ($fireflyClient) { return getSyncableAccount($fireflyClient, $account); }, $accounts);
     return $accounts;
 }
 
@@ -39,7 +58,10 @@ function createAccount($fireflyClient, $user) {
         "notes" => $notes,
         "active" => true,
     ];
-    return $fireflyClient->makeRequest("POST", "accounts", $data);
+    try {
+        $fireflyClient->makeRequest("POST", "accounts", $data);
+    } catch (Exception $e) {
+    }
 }
 
 function deactivateAccount($fireflyClient, $account) {
@@ -92,21 +114,7 @@ function getLDAPUsers() {
         throw new Exception("Could not get LDAP entries: " . ldap_error($conn));
     }
     for ($i = 0; $i < $entries["count"]; $i++) {
-        $entry = $entries[$i];
-        $user = [
-            "name" => sprintf("%s, %s", $entry["sn"][0], $entry["givenname"][0]),
-            "iban" => str_replace(" ", "", $entry[strtolower(LDAP_IBAN_ATTR)][0]),
-            "present" => false
-        ];
-        foreach (FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES as $attribute) {
-            if (isset($entry[strtolower($attribute["ldapKey"])][0])) {
-                $user[$attribute["key"]] = $entry[strtolower($attribute["ldapKey"])][0];
-                if(isset($attribute["ldapFormat"])) {
-                    $user[$attribute["key"]] = $attribute["ldapFormat"]($user[$attribute["key"]]);
-                }
-            }
-        }
-        $users[] = $user;
+        $users[] = getSyncableUser($entries[$i]);
     }
     ldap_unbind($conn);
     return $users;
@@ -114,7 +122,7 @@ function getLDAPUsers() {
 
 function syncAccounts($fireflyClient, $users) {
     $accounts = getAccounts($fireflyClient);
-    foreach($users as $user) {
+    foreach($users as &$user) {
         foreach($accounts as $account) {
             if($account["name"] == $user["name"]) {
                 $user["present"] = true;
@@ -136,7 +144,7 @@ function syncAccounts($fireflyClient, $users) {
         }
     }
     foreach($users as $user) {
-        if(!isset($user["present"])) {
+        if(!isset($user["present"]) || !$user["present"]) {
             createAccount($fireflyClient, $user);
         }
     }
