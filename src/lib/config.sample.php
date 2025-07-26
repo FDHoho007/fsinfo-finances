@@ -31,8 +31,9 @@ const FIREFLY_ACCOUNT_ADDITIONAL_ATTRIBUTES = [
     ],
 ];
 const PDF_TEMPLATES = [
-    "finanzamt" => "refund-finanzamt.pdf",
-    null => "refund.pdf"
+    "finanzamt" => "refund-finanzamt.pdf",       # This template applies to the tag "finanzamt"
+    "c7" => "refund-aufwandsentschädigung.pdf",  # This template applies to the category with id 7
+    null => "refund.pdf"                         # This is the default template
 ];
 
 function formatTIN($value) {

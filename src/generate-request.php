@@ -122,6 +122,9 @@ if(isset($id)) {
             break;
         }
     }
+    if(array_key_exists("c" . $transaction["category_id"], PDF_TEMPLATES)) {
+        $templateFile = "pdf-templates/" . PDF_TEMPLATES["c" . $transaction["category_id"]];
+    }
     pdftk($templateFile, "generate_fdf", "$tmpDir/refund.fdf");
     $fdfContent = file_get_contents($tmpDir . '/refund.fdf');
     foreach($transactionAttributes as $key => $value) {
