@@ -98,13 +98,13 @@
             $name = $user["givenname"][0] . " " . $user["sn"][0];
             $email = $user["email"][0];
             $syncableUser = getSyncableUser($user);
-            $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($user["sn"][0] . ", " . $user["givenname"][0]) . "");
+            $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($user["sn"][0] . ", " . $user["givenname"][0]));
             if(sizeof($account["data"]) == 0 || $account["data"][0]["attributes"]["name"] != $user["sn"][0] . ", " . $user["givenname"][0]
                  || diffAccount($syncableUser, getSyncableAccount($fireflyClient, $account["data"][0])) != 0) {
                 syncAccounts($fireflyClient, [$syncableUser]);
             }
             if(sizeof($account["data"]) == 0) {
-                $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($user["sn"][0] . ", " . $user["givenname"][0]) . "");
+                $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($user["sn"][0] . ", " . $user["givenname"][0]));
             }
             $destination = $account["data"][0]["id"];
         } else {
@@ -117,15 +117,19 @@
             if(!validateEmail($email) || !validateString($name) || !validateIBAN($iban) || !validateDate($dob) || !validateTaxId($taxId) || !validateString($address)) {
                 return [4, $prefilledFields];
             }
+            $name = explode(" ", $name);
+            $name = $name[1] . ", " . $name[0] . " (ext.)";
             $partner = [
                 "name" => $name,
                 "email" => $email,
                 "iban" => $iban,
                 "dob" => $dob,
-                "taxId" => $taxId,
+                "tin" => $taxId,
                 "address" => $address
             ];
+            $destination = "-1";
             $requiresMailVerification = $email;
+            // TODO: Remove when ext. users working
             return [4, $prefilledFields];
         }
         $category = $_POST["refund-category"];
@@ -183,7 +187,8 @@
         }
         if(isset($requiresMailVerification)) {
             file_put_contents($transactionDir . '/request.json', json_encode($transaction));
-            file_put_contents($transactionDir . '/partner.json', json_encode($transaction));
+            file_put_contents($transactionDir . '/partner.json', json_encode($$partner));
+            $verificationLink = "https://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'] . "?verify=" . $requestId;
             $subject = '=?UTF-8?B?' . base64_encode('FSinfo Rückerstattungsantrag') . '?=';
             $message = "Hallo,\n\nfür deine E-Mail-Adresse wurde soeben versucht einen Rückerstattungsantrag in Höhe von " . $transaction["amount"] . "€ beim Finanzteam der Fachschaft Info einzureichen.\n\nWenn du das gewesen bist, klicke bitte auf den folgenden Link, um deinen Rückerstattungsantrag zu bestätigen: $verificationLink\nDieser Link ist für eine Stunde gültig.\n\nWenn du das nicht warst, ignoriere diese E-Mail bitte einfach.\n\nViele Grüße,\nFSinfo Finanzteam";
             $headers = "Content-Type: text/plain; charset=UTF-8\r\nFrom: =?UTF-8?B?" . base64_encode('FSinfo Rückerstattungsantrag') . "?= <refund@zimvm.fsinfo.fim.uni-passau.de>\r\n";
@@ -219,6 +224,9 @@
 
     if(isset($_GET["verify"])) {
         $requestId = $_GET["verify"];
+        if (!preg_match('/^refund-request-[a-f0-9]{13}$/', $requestId)) {
+            die("Invalid verify parameter.");
+        }
         $transactionDir = __DIR__ . '/tmp/' . $requestId;
         if(!is_dir($transactionDir)) {
             echo("Dieser Link ist ungültig oder bereits abgelaufen.");
@@ -231,16 +239,28 @@
             exit;
         }
         $attachments = [];
-        $files = scandir($transactionDir);
-        foreach ($files as $file) {
+        foreach (scandir($transactionDir) as $file) {
             $filePath = $transactionDir . '/' . $file;
             if (is_file($filePath) && !str_ends_with($file, '.json')) {
                 $attachments[] = $filePath;
             }
         }
-        // TODO: Create or update destination account
-        createTransaction($fireflyClient, $transactionDir, $transaction, $attachments, $partner["name"], $partner["email"]);
-        $view = 9;
+        $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($partner["name"]));
+        if(sizeof($account["data"]) == 0) {
+            createAccount($partner);
+            $account = $fireflyClient->get("search/accounts?field=name&type=expense&query=" . urlencode($partner["name"]));
+            $transaction["destination_id"] = $account["data"][0]["id"];
+        } else {
+            if(diffAccount($partner, getSyncableAccount($account)) != 0) {
+                $view = 9;
+            } else {
+                $transaction["destination_id"] = $account["data"][0]["id"];
+            }
+        }
+        if(!isset($view)) {
+            createTransaction($fireflyClient, $transactionDir, $transaction, $attachments, $partner["name"], $partner["email"]);
+            $view = 9;
+        }
     } else if(isset($_POST["action"])) {
         if($_POST["action"] == "checkAddressbookData" && isset($_POST["username"]) && isset($_POST["password"])) {
             $user = getLDAPUserdata($_POST["username"], $_POST["password"]);
@@ -697,6 +717,16 @@
                     <p>
                         Da du keine FSinfo Kennung hast musst du zuerst deine E-Mail-Adresse bestätigen, bevor dein Antrag weitergeleitet werden kann.<br>
                         Bitte schaue in deinem E-Mail Postfach nach einer E-Mail mit dem Betreff "FSinfo Rückerstattungsantrag" und klicke auf den Link in der E-Mail.
+                    </p>
+                    <div class="buttons">
+                        <label for="view1-radio" class="btn btn-secondary">Zurück zur Startseite</label>
+                    </div>
+                </div>
+
+                <div id="view11" class="view col-md-8 p-0 p-3">
+                    <p>
+                        Unter deinem Namen wurde bereits ein Antrag eingereicht. Dieser hat allerdings unterschiedliche Bank- bzw. Personaldaten.<br>
+                        Dieser Konflikt kann nicht automatisch gelöst werden, daher wird dein Antrag nicht eingereicht. Bitte wende dich an einen Fachschaftsfinanzer!
                     </p>
                     <div class="buttons">
                         <label for="view1-radio" class="btn btn-secondary">Zurück zur Startseite</label>

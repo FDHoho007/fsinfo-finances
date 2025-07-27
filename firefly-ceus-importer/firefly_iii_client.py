@@ -23,7 +23,7 @@ class Firefly_III_Client:
         return self._request("POST", "transactions", body)
 
     def update_transaction(self, transaction_id, data, apply_rules=True, fire_webhooks=True):
-        body = {"apply_rules": apply_rules, "fire_webhooks": fire_webhooks, "transactions": [data]}
+        body = {"apply_rules": apply_rules, "fire_webhooks": fire_webhooks, "transactions": data}
         return self._request("PUT", f"transactions/{transaction_id}", body)
     
     def create_transaction_link(self, data):

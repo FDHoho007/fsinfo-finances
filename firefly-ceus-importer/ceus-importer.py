@@ -83,7 +83,7 @@ def update_transaction(client, transaction, item):
                 updated_transaction["tags"].append(item[field])
     for key in updated_transaction.keys():
         if updated_transaction[key] != transaction[key]:
-            client.update_transaction(transaction['id'], updated_transaction)
+            client.update_transaction(transaction['id'], [updated_transaction])
             break
     if "ref_id" in FORCE_UPDATE_FIELDS:
         transaction_link = client.get_transaction_links(transaction['transaction_journal_id'])
@@ -100,13 +100,19 @@ def update_transaction(client, transaction, item):
                         client.update_transaction_link(transaction_link['id'], updated_transaction_link)
                         break
 
-def process_transaction(client, transaction, item):
-    updated_transaction = {"tags": transaction['tags'], "budget_id": item["budget_id"], "book_date": item["date"], "internal_reference": item["internal_reference"]}
-    updated_transaction["tags"].append("hül-nr-" + item["id"]) 
-    updated_transaction["tags"].append(FIREFLY_PROCESSED_TAG)
-    if item["category"] != "--":
-        updated_transaction["tags"].append(item["category"])
-    client.update_transaction(transaction['id'], updated_transaction)
+def process_transaction(client, transaction, item, journal_ids):
+    transactions = journal_ids.copy()
+    for updated_transaction in transactions:
+        if updated_transaction["transaction_journal_id"] == transaction["transaction_journal_id"]:
+            updated_transaction["tags"] = transaction["tags"]
+            updated_transaction["tags"].append("hül-nr-" + item["id"])
+            updated_transaction["tags"].append(FIREFLY_PROCESSED_TAG)
+            if item["category"] != "--":
+                updated_transaction["tags"].append(item["category"])
+            updated_transaction["budget_id"] = item["budget_id"]
+            updated_transaction["book_date"] = item["date"]
+            updated_transaction["internal_reference"] = item["internal_reference"]
+    client.update_transaction(transaction['id'], transactions)
 
 def transaction_map_attributes(item):
     item["internal_reference"] = item["id"]
@@ -143,11 +149,13 @@ def main():
             found_pending_transaction = False
             for transaction in pending_transactions['data'] if pending_transactions is not None else []:
                 transaction_id = transaction['id']
-                transaction = transaction['attributes']['transactions'][0]
-                transaction['id'] = transaction_id
-                if FIREFLY_PROCESSED_TAG not in transaction.get("tags", []) and float(transaction.get("amount")) == float(item["amount"]):
-                    process_transaction(client, transaction, item)
-                    found_pending_transaction = True
+                journal_ids = [{"transaction_journal_id": x["transaction_journal_id"]} for x in transaction['attributes']['transactions']]
+                for transaction in transaction['attributes']['transactions']:
+                    transaction['id'] = transaction_id
+                    if FIREFLY_PROCESSED_TAG not in transaction.get("tags", []) and float(transaction.get("amount")) == float(item["amount"]):
+                        process_transaction(client, transaction, item, journal_ids)
+                        found_pending_transaction = True
+                        break
             if not found_pending_transaction:
                 create_transaction(client, item)
 
