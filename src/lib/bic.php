@@ -2,33 +2,40 @@
 
 $BICs = [];
 
-$html = file_get_contents('https://www.bundesbank.de/de/aufgaben/unbarer-zahlungsverkehr/serviceangebot/bankleitzahlen/download-bankleitzahlen-602592');
-if ($html !== false) {
-    libxml_use_internal_errors(true);
-    $dom = new DOMDocument();
-    $dom->loadHTML($html);
-    $xpath = new DOMXPath($dom);
-    $targetNode = $xpath->query("//*[text()='Bankleitzahlendateien ungepackt']")->item(0);
-    if ($targetNode) {
-        $href = $xpath->query("./ul/li[2]/div/a", $targetNode->parentNode)->item(0)->getAttribute('href');
-        $csvContent = file_get_contents("https://www.bundesbank.de$href");
-        foreach (explode("\n", $csvContent) as $line) {
-            $parts = explode(";", $line);
-            if (count($parts) < 8) {
-                continue;
+function getBICs() {
+    $bics = [];
+    $html = file_get_contents('https://www.bundesbank.de/de/aufgaben/unbarer-zahlungsverkehr/serviceangebot/bankleitzahlen/download-bankleitzahlen-602592');
+    if ($html !== false) {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $dom->loadHTML($html);
+        $xpath = new DOMXPath($dom);
+        $targetNode = $xpath->query("//*[text()='Bankleitzahlendateien ungepackt']")->item(0);
+        if ($targetNode) {
+            $href = $xpath->query("./ul/li[2]/div/a", $targetNode->parentNode)->item(0)->getAttribute('href');
+            $csvContent = file_get_contents("https://www.bundesbank.de$href");
+            foreach (explode("\n", $csvContent) as $line) {
+                $parts = explode(";", $line);
+                if (count($parts) < 8) {
+                    continue;
+                }
+                $value = trim($parts[7], " \t\n\r\0\x0B\"");
+                if (empty($value)) {
+                    continue;
+                }
+                $bics[trim($parts[0], " \t\n\r\0\x0B\"")] = $value;
             }
-            $value = trim($parts[7], " \t\n\r\0\x0B\"");
-            if (empty($value)) {
-                continue;
-            }
-            $BICs[trim($parts[0], " \t\n\r\0\x0B\"")] = $value;
         }
+        libxml_clear_errors();
     }
-    libxml_clear_errors();
+    return $bics;
 }
 
 function iban2bic($iban) {
     global $BICs;
+    if(empty($BICs)) {
+        $BICs = getBICs();
+    }
     $iban = str_replace(" ", "", $iban);
     if (strlen($iban) < 8) {
         return "";
