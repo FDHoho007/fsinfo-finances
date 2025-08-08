@@ -8,9 +8,9 @@ if ($html !== false) {
     $dom = new DOMDocument();
     $dom->loadHTML($html);
     $xpath = new DOMXPath($dom);
-    $nodes = $xpath->query("//li[2]//a[contains(@class, 'linklist__link--blocklist')]");
-    if ($nodes->length > 0) {
-        $href = $nodes->item(0)->getAttribute('href');
+    $targetNode = $xpath->query("//*[text()='Bankleitzahlendateien ungepackt']")->item(0);
+    if ($targetNode) {
+        $href = $xpath->query("./ul/li[2]/div/a", $targetNode->parentNode)->item(0)->getAttribute('href');
         $csvContent = file_get_contents("https://www.bundesbank.de$href");
         foreach (explode("\n", $csvContent) as $line) {
             $parts = explode(";", $line);
