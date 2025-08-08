@@ -206,7 +206,7 @@
             $ffAttachment = $fireflyClient->makeRequest('POST', 'attachments', [
                 "filename" => basename($attachment),
                 "attachable_type" => "TransactionJournal",
-                "attachable_id" => $ffTransaction["data"]["id"],
+                "attachable_id" => $ffTransaction["data"]["attributes"]["transactions"][0]["transaction_journal_id"],
             ], true);
             $fireflyClient->makeRequest('POST', 'attachments/' . $ffAttachment["data"]["id"] . '/upload', file_get_contents($attachment), true, true);
         }
