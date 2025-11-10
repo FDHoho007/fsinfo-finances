@@ -95,8 +95,23 @@ if(isset($id)) {
             $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
             if ($httpcode === 200) {
-                $filePath = $tmpDir . '/' . $attachment["attributes"]["filename"];
+                $fileName = $attachment["attributes"]["filename"];
+                $fileName = strtr($fileName, [
+                    'ä' => 'ae',
+                    'Ä' => 'Ae',
+                    'ö' => 'oe',
+                    'Ö' => 'Oe',
+                    'ü' => 'ue',
+                    'Ü' => 'Ue',
+                ]);
+                $fileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName);
+                $filePath = $tmpDir . '/' . $fileName;
                 file_put_contents($filePath, $response);
+                $pathInfo = pathinfo($filePath);
+                if (!str_ends_with($fileName, '.pdf')) {
+                    shell_exec("convert $filePath $filePath.pdf");
+                    $filePath .= '.pdf';
+                }
                 $attachments[] = $filePath;
             } else {
                 throw new Exception('Error fetching attachment: ' . $downloadUrl);
